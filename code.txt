@@ -23,3 +23,5 @@ def DataReading(filename):
             plt.plot(t, F(t), 'bo')
             
     plt.show()
+
+DataReading("fileout_20150512_air.txt")
