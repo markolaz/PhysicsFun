@@ -1,0 +1,25 @@
+import matplotlib.pyplot as plt
+import math
+def DataReading(filename):
+    file = open(filename) #loading in data file
+    for line in file: #looping over lines in file
+        parts = line.split() #splitting each line into columns
+        if len(parts) > 1:
+            plt.plot([parts[0]], [parts[1]], 'ro') #parts[0] = column 1, parts[1] = column 2, etc.
+
+            t = float(parts[0]) #first column is time
+            Fo = 1.000
+            D = .155 #15.5% transit depth
+            tmin = 154.76274
+            t1 = 0.79
+            t2 = 1.23
+            xi = t2/t1
+            to = tmin - (t1*t2*math.log(xi)/(t1+t2))
+            C = D*(1+xi)/pow(xi, xi/(1+xi)) #getting value for C from equation 2
+            #print(t, Fo, C, to, t1, t2)
+            
+            def F(t):
+                return Fo - C*pow(math.exp(-(t-to)/t1) + math.exp((t-to)/t2), -1) #equation 1 to get F(t)
+            plt.plot(t, F(t), 'bo')
+            
+    plt.show()
