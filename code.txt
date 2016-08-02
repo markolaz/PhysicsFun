@@ -1,27 +1,92 @@
-import matplotlib.pyplot as plt
+import emcee
 import math
-def DataReading(filename):
-    file = open(filename) #loading in data file
-    for line in file: #looping over lines in file
-        parts = line.split() #splitting each line into columns
-        if len(parts) > 1:
-            plt.plot([parts[0]], [parts[1]], 'ro') #parts[0] = column 1, parts[1] = column 2, etc.
+import numpy as np
+import matplotlib.pyplot as plt
 
-            t = float(parts[0]) #first column is time
-            Fo = 1.000
-            D = .155 #15.5% transit depth
-            tmin = 154.76274
-            t1 = 0.79
-            t2 = 1.23
+#params = np.array([1.000, 0.155, 154.76274, 0.79, 1.23])
+
+#t = []
+#y = []
+yerr = 0.03
+filename = "anaconda2/data/fileout_20150512_air2.txt"
+file = open(filename)
+for line in file:
+    parts = line.split()
+    if len(parts) > 1:
+        #t.append(float(parts[0]))
+        #y.append(float(parts[1]))
+        t = float(parts[0])
+        y = float(parts[1])
+        data = (t, y, yerr)
+
+        def model1(params, t):
+            Fo, D, tmin, t1minute, t2minute = params
+            t1 = t1minute/1440
+            t2 = t2minute/1440
             xi = t2/t1
             to = tmin - (t1*t2*math.log(xi)/(t1+t2))
-            C = D*(1+xi)/pow(xi, xi/(1+xi)) #getting value for C from equation 2
-            #print(t, Fo, C, to, t1, t2)
-            
-            def F(t):
-                return Fo - C*pow(math.exp(-(t-to)/t1) + math.exp((t-to)/t2), -1) #equation 1 to get F(t)
-            plt.plot(t, F(t), 'bo')
-            
-    plt.show()
+            C = D*(1+xi)/pow(xi, xi/(1+xi))
+            #print "-t-to/t1 = ", -(t-to)/t1
+            #print "t-to/t2 = ", (t-to)/t2
+            if (-(t-to)/t1) > 700 or ((t-to)/t2) > 700:
+                return 0
+            else:
+                return Fo - C*pow(math.exp(-(t-to)/t1) + math.exp((t-to)/t2), -1)
 
-DataReading("fileout_20150512_air.txt")
+        def lnlike1(p, t, y, yerr):
+            return -0.5 * np.sum(((y - model1(p, t))/yerr) ** 2)
+
+        def lnprior(p):
+            Fo, D, tmin, t1minute, t2minute = p
+            t1 = t1minute/1440
+            t2 = t2minute/1440
+            xi = t2/t1
+            C = D*(1+xi)/pow(xi, xi/(1+xi))
+            if not 0.95 < Fo < 1.05:
+                return -np.inf
+            if not 0.10 < D < 0.20:
+                return -np.inf
+            if not 150 < tmin < 160:
+                return -np.inf
+            if not 0 < t1minute < 1:
+                return -np.inf
+            if not 1 < t2minute < 2:
+                return -np.inf
+            return 0.0
+
+        def lnprob1(p, x, y, yerr):
+            lp = lnprior(p)
+            return lp + lnlike1(p, x, y, yerr) if np.isfinite(lp) else -np.inf
+
+        initial = np.array([1.000, 0.155, 154.76274, 0.79, 1.23])
+        ndim = len(initial)
+        nwalkers=32
+        p0 = [np.array(initial) + 1e-8 * np.random.randn(ndim)
+              for i in xrange(nwalkers)]
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob1, args=data)
+
+        print("Running burn-in...")
+        p0, _, _ = sampler.run_mcmc(p0, 500)
+        sampler.reset()
+
+        print("Running production...")
+        sampler.run_mcmc(p0, 1000)
+
+        # Plot the data.
+        plt.errorbar(t, y, yerr=yerr, fmt=".k", capsize=0)
+
+        # The positions where the prediction should be computed.
+        x = np.linspace(154, 155, 500)
+
+        # Plot 24 posterior samples.
+        samples = sampler.flatchain
+        for s in samples[np.random.randint(len(samples), size=24)]:
+            #plt.plot(x, model(s, x), color="#4682b4", alpha=0.3)
+            for value in x:
+                plt.plot(value, model1(s, value), color="#4682b4", alpha=0.3)
+                #print value
+            #if (-(x[value]-(s[2] - (s[3]*s[4]*math.log(s[4]/s[3])/(s[3]+s[4]))))/s[3]) > 700 or ((x[value]-(s[2] - (s[3]*s[4]*math.log(s[4]/s[3])/(s[3]+s[4]))))/s[4]) > 700:
+            #    plt.plot(x[value], 0, color="#4682b4", alpha=0.3)
+            #else:
+            #plt.plot(x, model1(s, x), color="#4682b4", alpha=0.3)
+plt.show()
