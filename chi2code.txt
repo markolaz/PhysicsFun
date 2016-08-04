@@ -1,0 +1,42 @@
+import matplotlib.pyplot as plt
+import numpy as np
+import math
+
+time = []
+flux = []
+yerr = 0.03
+filename = "anaconda2/data/fileout_20150512_air.txt"
+file = open(filename)
+for line in file:
+    parts = line.split()
+    if len(parts) > 1:
+        time.append(float(parts[0]))
+        flux.append(float(parts[1]))
+
+def chi2(tmin):
+    Fo = 1.000
+    D = .155 
+    t1 = 0.79/1440
+    t2 = 1.23/1440
+    #tmin = 154.76274
+    xi = t2/t1
+    to = tmin - (t1*t2*math.log(xi)/(t1+t2))
+    C = D*(1+xi)/pow(xi, xi/(1+xi))
+    chi2val = 0
+    for val in range(0,125):
+        t = time[val]
+        y = flux[val]
+        y1 = Fo - C*pow(math.exp(-(t-to)/t1) + math.exp((t-to)/t2), -1)
+        chi2val += ((y-y1)/yerr)**2
+    return chi2val
+
+rng = np.linspace(154.3,155,100000)
+lowestval = 1000000
+newtmin = 0
+for value in rng:
+    plt.plot(value, chi2(value), ".k")
+    if chi2(value) < lowestval:
+        lowestval = chi2(value)
+        newtmin = value
+print newtmin
+plt.show()
