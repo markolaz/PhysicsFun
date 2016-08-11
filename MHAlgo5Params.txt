@@ -1,0 +1,208 @@
+#-----Metropolis-Hastings Algorithm-----#
+#!/usr/bin/env python
+# Author:      Flávio Codeço Coelho
+# License:     GPL
+
+from math import *
+from matplotlib.pylab import *
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+import numpy as np
+
+time = []
+flux = []
+yerr = 0.03
+filename = "anaconda2/data/fileout_20150512_air.txt" # 1.000, 0.155, 154.76274, 0.79, 1.23
+#filename = "anaconda2/data/fileout_20150511_air_air.txt" # 0.999, .100, 153.64015, 1.90, 1.45
+#filename = "anaconda2/data/fileout_20150512_V.txt" #1.000, .120, 154.76274, 0.79, 1.23
+
+file = open(filename)
+for line in file:
+    parts = line.split()
+    if len(parts) > 1:
+        time.append(float(parts[0]))
+        flux.append(float(parts[1]))
+        
+def chi2(Fo, D, t1, t2, tmin):
+    #Fo = 1.00
+    #D = .155
+    #t1 = 0.79/1440
+    #t2 = 1.23/1440
+    #tmin = 154.76274
+    xi = t2/t1
+    to = tmin - (t1*t2*math.log(xi)/(t1+t2))
+    C = D*(1+xi)/pow(xi, xi/(1+xi))
+    chi2val = 0
+    for val in range(0,125):
+        t = time[val]
+        y = flux[val]+1
+        y1 = Fo - C*pow(math.exp(-(t-to)/t1) + math.exp((t-to)/t2), -1)
+        #plt.plot(t, y, "ro")
+        #plt.plot(t, y1, "bo")
+        chi2val += ((y-y1)**2)/(yerr**2)
+    return chi2val
+
+#def sdnorm(z):
+#    """
+#    Standard normal pdf (Probability Density Function)
+#    """
+#    return exp(-z*z/2.)/sqrt(2*pi)
+
+n = 100000
+#alpha = 1
+
+#x = 0.
+Foval = 1.00
+Dval = 0.155
+t1val = 0.79/1440
+t2val = 1.23/1440
+tminval = 154.76274
+#vec = []
+Fovec = []
+Dvec = []
+t1vec = []
+t2vec = []
+tminvec = []
+#vec.append(x)
+Fovec.append(Foval)
+Dvec.append(Dval)
+t1vec.append(t1val)
+t2vec.append(t2val)
+tminvec.append(tminval)
+#innov = uniform(-alpha,alpha,n) #random innovation, uniform proposal distribution
+Forange = uniform(-0.05, 0.05, n)
+Drange = uniform(-0.05, 0.05, n)
+t1range = uniform(-0.2/1440, 0.2/1440, n) #random innovation, uniform proposal distribution
+t2range = uniform(-0.2/1440, 0.2/1440, n)
+tminrange = uniform(-0.1, 0.1, n)
+#t1range = uniform(0.6/1440,0.8/1440,n)
+#print t1range*1440
+for i in xrange(1,n):
+    #can = x + t1range[i] #candidate
+    #can = t1range[i]
+    #print (t1val+t1range[i])*1440
+    if Foval+Forange[i] < 0.95 or Foval+Forange[i] > 1.05:
+        continue
+    if Dval+Drange[i] < 0.105 or Dval+Drange[i] > 0.205:
+        continue
+    if (t1val+t1range[i])*1440 < 0.49 or (t1val+t1range[i])*1440 > 1.09:
+        continue
+    if (t2val+t2range[i])*1440 < 0.93 or (t2val+t2range[i])*1440 > 1.53:
+        continue
+    if tminval+tminrange[i] < 154.66 or tminval+tminrange[i] > 154.86:
+        continue
+    Focan = Foval + Forange[i]
+    Dcan = Dval + Drange[i]
+    t1can = t1val + t1range[i]
+    t2can = t2val + t2range[i]
+    tmincan = tminval + tminrange[i]
+    #aprob = min([1.,sdnorm(can)/sdnorm(x)]) #acceptance probability
+    aprob = min([1., chi2(Focan, Dcan, t1can, t2can, tmincan)/chi2(Foval, Dval, t1val, t2val, tminval)])
+    #aprob = min([1., abs((chi2(Focan, Dcan, t1can, t2can, tmincan)-chi2(Foval, Dval, t1val, t2val, tminval))/chi2(Foval, Dval, t1val, t2val, tminval)*100)])
+    #print chi2(Focan, Dcan, t1can, t2can, tmincan)/chi2(Foval, Dval, t1val, t2val, tminval), chi2(Focan, Dcan, t1can, t2can, tmincan), chi2(Foval, Dval, t1val, t2val, tminval)#, can*1440, t1val*1440
+    #print abs((chi2(Focan, Dcan, t1can, t2can, tmincan)-chi2(Foval, Dval, t1val, t2val, tminval))/chi2(Foval, Dval, t1val, t2val, tminval)*100)
+    u = uniform(0,1)
+    if u < aprob:
+        #x = can
+        Foval = Focan
+        Dval = Dcan
+        t1val = t1can
+        t2val = t2can
+        tminval = tmincan
+        #vec.append(x)
+        Fovec.append(Foval)
+        Dvec.append(Dval)
+        t1vec.append(t1val)
+        t2vec.append(t2val)
+        tminvec.append(tminval)
+        
+#print Fovec[3:]
+
+newFo = sum(Fovec[1000:])/float(len(Fovec[1000:]))
+newD = sum(Dvec[1000:])/float(len(Dvec[1000:]))
+newt1 = sum(t1vec[1000:])/float(len(t1vec[1000:]))*1440
+newt2 = sum(t2vec[1000:])/float(len(t2vec[1000:]))*1440
+newtmin = sum(tminvec[1000:])/float(len(tminvec[1000:]))
+
+print "Optimized value for Fo = ", newFo
+print "Optimized value for D = ", newD
+print "Optimized value for t1 = ", newt1
+print "Optimized value for t2 = ", newt2
+print "Optimized value for tmin = ", newtmin
+
+#plotting the results:
+#theoretical curve
+#x = arange(-3,3,.1)
+#y = sdnorm(x)
+#y = chi2(x)
+plt.figure(1)
+subplot(211)
+title('Fo optimization')
+#plot(vec)
+plot(Fovec)
+subplot(212)
+#hist(vec, bins=200, normed=1)
+n1, bins1, _ = hist(Fovec, bins=200, normed=1)
+bin_width1 = bins1[1] - bins1[0]
+integral1 = bin_width1 * sum(n1[30:170])
+print "Area for Fo = ", integral1
+#plot(x,y,'ro')
+ylabel('Frequency')
+xlabel('Foval')
+#legend(('PDF','Samples'))
+
+plt.figure(2)
+subplot(211)
+title('D optimization')
+plot(Dvec)
+subplot(212)
+n2, bins2, _ = hist(Dvec, bins=200, normed=1)
+bin_width2 = bins2[1] - bins2[0]
+integral2 = bin_width2 * sum(n2[40:160])
+print "Area for D = ", integral2
+ylabel('Frequency')
+xlabel('Dval')
+
+plt.figure(3)
+subplot(211)
+title('t1 optimization')
+plot(t1vec)
+subplot(212)
+n3, bins3, _ = hist(t1vec, bins=200, normed=1)
+bin_width3 = bins3[1] - bins3[0]
+integral3 = bin_width3 * sum(n3[40:160])
+print "Area for t1 = ", integral3
+ylabel('Frequency')
+xlabel('t1val')
+
+plt.figure(4)
+subplot(211)
+title('t2 optimization')
+plot(t2vec)
+subplot(212)
+n4, bins4, _ = hist(t2vec, bins=200, normed=1)
+bin_width4 = bins4[1] - bins4[0]
+integral4 = bin_width4 * sum(n4[40:160])
+print "Area for t2 = ", integral4
+ylabel('Frequency')
+xlabel('t2val')
+
+plt.figure(5)
+subplot(211)
+title('tmin optimization')
+plot(tminvec)
+subplot(212)
+n5, bins5, _ = hist(tminvec, bins=200, normed=1)
+bin_width5 = bins5[1] - bins5[0]
+integral5 = bin_width5 * sum(n5[40:160])
+print "Area for tmin = ", integral5
+ylabel('Frequency')
+xlabel('tminval')
+
+print "Fo lower, upper error = ", newFo-bins1[30], ", ", bins1[170]-newFo
+print "D lower, upper error = ", newD-bins2[40], ", ", bins2[160]-newD
+print "t1 lower, upper error = ", newt1-bins3[40]*1440, ", ", bins3[160]*1440-newt1
+print "t2 lower, upper error = ", newt2-bins4[40]*1440, ", ", bins4[160]*1440-newt2
+print "tmin lower, upper error = ", newtmin-bins5[40], ", ", bins5[160]-newtmin
+
+show()
